@@ -916,10 +916,13 @@ async function showGeneratingTopic() {
   const topic = await getAITopic(usedTopics);
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const lockExpiry = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const { data, error } = await db.from('rounds').insert({
     topic,
     expires_at: expiresAt,
-    guessed: false
+    guessed: false,
+    drawing_lock_ip: myIP,          // 出題者直接預佔鎖
+    drawing_lock_expires: lockExpiry
   }).select().single();
 
   if (error) {
@@ -1050,18 +1053,25 @@ let canvasLocked = false; // 是否已鎖定（第一筆才觸發）
 
 async function tryLockRound(round) {
   if (canvasLocked) return true;
+
+  // 出題者建立時已預佔鎖，直接通過
+  if (round.drawing_lock_ip === myIP) {
+    canvasLocked = true;
+    return true;
+  }
+
+  // 其他人才需要搶鎖（lock 是 null 或已過期）
   const lockExpiry = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
   const { data: locked, error } = await db
     .from('rounds')
     .update({ drawing_lock_ip: myIP, drawing_lock_expires: lockExpiry })
     .eq('id', round.id)
-    .or(`drawing_lock_ip.is.null,drawing_lock_expires.lt.${now},drawing_lock_ip.eq.${myIP}`)
+    .or(`drawing_lock_ip.is.null,drawing_lock_expires.lt.${now}`)
     .select()
     .single();
 
   if (error || !locked) {
-    // 搶不到鎖，有人比我先畫了
     showSomeoneDrawing(round);
     return false;
   }
