@@ -709,11 +709,31 @@ function stageFlow(active) {
 // AI TOPIC GENERATOR
 // ══════════════════════════════════════
 const FALLBACK_TOPICS = [
-  '蠟筆小新','哆啦A夢','獨角獸','章魚燒','彩虹','恐龍','泡麵',
-  '貓咪打呼','企鵝溜冰','外星人騎腳踏車','超人變形金剛','章魚吃壽司',
-  '機器人跳舞','熊貓打太極','狗狗開車','兔子做蛋糕','烏龜賽跑',
-  '花枝丸','章魚跳舞','貓咪釣魚','蘑菇城堡','飛天豬','彩虹獨角獸',
-  '外星人吃火鍋','機器人洗澡','恐龍騎腳踏車','熊貓吃竹子'
+  // 動物
+  '貓咪打呼','企鵝溜冰','恐龍騎腳踏車','熊貓打太極','狗狗開車',
+  '兔子做蛋糕','烏龜賽跑','章魚吃壽司','飛天豬','獨角獸',
+  '河馬刷牙','長頸鹿照鏡子','北極熊曬太陽','螃蟹跳舞','貓頭鷹讀書',
+  '章魚跳舞','貓咪釣魚','熊貓吃竹子','恐龍','蠟筆小新',
+  // 食物
+  '章魚燒','泡麵','彩虹蛋糕','漢堡疊很高','冰淇淋融化',
+  '拉麵打結','蛋糕著火','珍珠奶茶','小籠包','臭豆腐',
+  '鳳梨酥','便當','夜市','章魚小丸子','花枝丸',
+  // 人物動作
+  '外星人騎腳踏車','機器人跳舞','超人睡午覺','忍者煮火鍋','海盜刷牙',
+  '太空人買菜','巫婆自拍','公主打籃球','騎士玩手機','魔法師洗碗',
+  '外星人吃火鍋','機器人洗澡','超人變形金剛',
+  // 日常
+  '雨天撐傘','沙灘城堡','彩虹','閃電','雪人融化',
+  '氣球飛走','手機沒電','包包太重','腳踏車爆胎','電梯門夾人',
+  // 搞笑
+  '貓咪坐辦公室','狗狗開會','外星人迷路','機器人感冒',
+  '魚在天上飛','冰箱走路','椅子跑步','桌子跳繩','車子在水裡開',
+  // 台灣特色
+  '機車大軍','廟會','燈籠','阿嬤的菜市場','珍奶',
+  // 卡通
+  '哆啦A夢','皮卡丘','米老鼠','史努比','彩虹獨角獸','蘑菇城堡',
+  // 自然
+  '火山爆發','海底世界','星空','極光','彩虹橋',
 ];
 
 async function getUsedTopics() {
@@ -724,34 +744,8 @@ async function getUsedTopics() {
   return new Set((data || []).map(r => r.topic.trim().toLowerCase()));
 }
 
-const HF_TOKEN = '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';
-
 async function getAITopic(usedTopics = new Set()) {
-  try {
-    const usedList = [...usedTopics].slice(0, 15).join('、');
-    const prompt = `你是一個遊戲出題機器人。請給我一個適合「你畫我猜」遊戲的中文題目。要有趣具體可以畫出來，2到6個中文字。${usedList ? `不要用這些已出過的題目：${usedList}。` : ''}只回答題目本身，不要任何解釋或標點。`;
-
-    const res = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: `<s>[INST] ${prompt} [/INST]`,
-        parameters: { max_new_tokens: 30, temperature: 0.9, return_full_text: false }
-      })
-    });
-
-    const data = await res.json();
-    // 取出回覆文字，清理多餘內容
-    let text = (data[0]?.generated_text || '').trim();
-    text = text.split('\n')[0].replace(/[。，！？,.!?"""'']/g, '').trim();
-    if (text && text.length >= 2 && text.length <= 10) return text;
-    return randomFallback(usedTopics);
-  } catch(e) {
-    return randomFallback(usedTopics);
-  }
+  return randomFallback(usedTopics);
 }
 
 function randomFallback(usedTopics = new Set()) {
@@ -764,10 +758,25 @@ function randomFallback(usedTopics = new Set()) {
 // MAIN GAME LOGIC
 // ══════════════════════════════════════
 let currentRound = null;
+let myIP = null;
+
+// 取得自己的 IP
+async function getMyIP() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    myIP = data.ip;
+  } catch(e) {
+    // 取不到就用隨機字串代替（確保每次不同）
+    myIP = 'anon_' + Math.random().toString(36).slice(2);
+  }
+}
 
 async function initGame() {
   const area = document.getElementById('game-area');
   area.innerHTML = `<div class="loading-wrap"><div class="loading-spinner"></div><div class="loading-text">連結遊戲中…</div></div>`;
+
+  await getMyIP();
 
   // 取得最新未結束的 round
   const { data: rounds, error } = await db
@@ -792,13 +801,15 @@ async function initGame() {
   currentRound = rounds[0];
 
   if (!currentRound.drawing_url) {
-    // 有題目但沒人畫
     showDrawStage(currentRound);
   } else if (!currentRound.guessed) {
-    // 有畫但沒人猜
-    showGuessStage(currentRound);
+    // 檢查是否是畫圖者本人
+    if (myIP && currentRound.drawer_ip === myIP) {
+      showDrawerWaiting(currentRound);
+    } else {
+      showGuessStage(currentRound);
+    }
   } else {
-    // 已結束，產生新題目
     showRoundComplete(currentRound);
   }
 
@@ -981,7 +992,8 @@ async function submitDrawing() {
 
   const { error } = await db.from('rounds').update({
     drawing_url: compressed,
-    drawn_at: new Date().toISOString()
+    drawn_at: new Date().toISOString(),
+    drawer_ip: myIP
   }).eq('id', currentRound.id);
 
   if (error) {
@@ -992,9 +1004,10 @@ async function submitDrawing() {
   }
 
   currentRound.drawing_url = compressed;
+  currentRound.drawer_ip = myIP;
   currentRound.guessed = false;
   toast('🎨 畫作送出！換別人來猜了！');
-  showGuessStage(currentRound);
+  showDrawerWaiting(currentRound);
 }
 
 async function compressCanvas(canvas) {
@@ -1005,6 +1018,35 @@ async function compressCanvas(canvas) {
     c.drawImage(canvas, 0, 0, tmp.width, tmp.height);
     resolve(tmp.toDataURL('image/jpeg', 0.7));
   });
+}
+
+// ── 畫圖者等待畫面 ──
+function showDrawerWaiting(round) {
+  const area = document.getElementById('game-area');
+  area.innerHTML = `
+    ${stageFlow(2)}
+    <div class="card" style="text-align:center">
+      <div style="font-size:3rem;margin-bottom:12px">👀</div>
+      <div style="font-family:var(--font-fun);font-size:1.2rem;font-weight:900;margin-bottom:8px">等待別人來猜！</div>
+      <div style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:20px;line-height:1.6;">
+        你畫了「<strong>${esc(round.topic)}</strong>」<br>
+        你是畫圖者，不能猜這題喔 😄<br>
+        把網頁分享給朋友來猜吧！
+      </div>
+      <img src="${esc(round.drawing_url)}" style="width:100%;max-width:360px;border-radius:var(--radius-sm);border:2px solid var(--border);margin-bottom:20px;">
+      <div style="font-size:0.78rem;color:#ccc;font-family:var(--font-fun)">頁面會每 10 秒自動更新</div>
+    </div>`;
+
+  // 每 10 秒重新檢查是否已有人猜到
+  const poll = setInterval(async () => {
+    const { data } = await db.from('rounds').select('guessed').eq('id', round.id).single();
+    if (data?.guessed) {
+      clearInterval(poll);
+      currentRound.guessed = true;
+      showRoundComplete(currentRound);
+      loadHistory();
+    }
+  }, 10000);
 }
 
 // ── 猜題階段 ──
