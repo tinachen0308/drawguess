@@ -832,18 +832,18 @@ async function getMyIP() {
 
 // ── 自動清理：只保留最新 7 筆已完成的 round ──
 async function cleanupOldRounds() {
-  // 取所有已完成的 round，按時間新到舊排列
   const { data, error } = await db
     .from('rounds')
-    .select('id, guessed_at')
+    .select('id')
     .eq('guessed', true)
-    .order('guessed_at', { ascending: false });
+    .order('created_at', { ascending: false });
 
   if (error || !data || data.length <= 7) return;
 
-  // 第 8 筆之後的都刪掉（comments 有 ON DELETE CASCADE 會一起刪）
   const toDelete = data.slice(7).map(r => r.id);
-  await db.from('rounds').delete().in('id', toDelete);
+  if (toDelete.length > 0) {
+    await db.from('rounds').delete().in('id', toDelete);
+  }
 }
 
 async function initGame() {
@@ -1394,7 +1394,7 @@ async function loadHistory() {
     .from('rounds')
     .select('*')
     .eq('guessed', true)
-    .order('guessed_at', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(20);
 
   const section = document.getElementById('history-section');
