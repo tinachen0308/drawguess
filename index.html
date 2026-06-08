@@ -711,33 +711,53 @@ function stageFlow(active) {
 const FALLBACK_TOPICS = [
   '蠟筆小新','哆啦A夢','獨角獸','章魚燒','彩虹','恐龍','泡麵',
   '貓咪打呼','企鵝溜冰','外星人騎腳踏車','超人變形金剛','章魚吃壽司',
-  '機器人跳舞','熊貓打太極','狗狗開車','兔子做蛋糕','烏龜賽跑'
+  '機器人跳舞','熊貓打太極','狗狗開車','兔子做蛋糕','烏龜賽跑',
+  '花枝丸','章魚跳舞','貓咪釣魚','蘑菇城堡','飛天豬','彩虹獨角獸',
+  '外星人吃火鍋','機器人洗澡','恐龍騎腳踏車','熊貓吃竹子'
 ];
 
-async function getAITopic() {
+async function getUsedTopics() {
+  const { data } = await db
+    .from('rounds')
+    .select('topic')
+    .gte('expires_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+  return new Set((data || []).map(r => r.topic.trim().toLowerCase()));
+}
+
+const HF_TOKEN = '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';
+
+async function getAITopic(usedTopics = new Set()) {
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const usedList = [...usedTopics].slice(0, 15).join('、');
+    const prompt = `你是一個遊戲出題機器人。請給我一個適合「你畫我猜」遊戲的中文題目。要有趣具體可以畫出來，2到6個中文字。${usedList ? `不要用這些已出過的題目：${usedList}。` : ''}只回答題目本身，不要任何解釋或標點。`;
+
+    const res = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 60,
-        messages: [{
-          role: 'user',
-          content: '請給我一個適合「你畫我猜」遊戲的題目。要有趣、具體、可以畫出來。只回覆題目本身，2-8個中文字，不要任何解釋或標點符號。例如：章魚燒、獨角獸、外星人騎腳踏車。'
-        }]
+        inputs: `<s>[INST] ${prompt} [/INST]`,
+        parameters: { max_new_tokens: 30, temperature: 0.9, return_full_text: false }
       })
     });
+
     const data = await res.json();
-    const text = data.content?.[0]?.text?.trim();
-    return text && text.length <= 20 ? text : randomFallback();
+    // 取出回覆文字，清理多餘內容
+    let text = (data[0]?.generated_text || '').trim();
+    text = text.split('\n')[0].replace(/[。，！？,.!?"""'']/g, '').trim();
+    if (text && text.length >= 2 && text.length <= 10) return text;
+    return randomFallback(usedTopics);
   } catch(e) {
-    return randomFallback();
+    return randomFallback(usedTopics);
   }
 }
 
-function randomFallback() {
-  return FALLBACK_TOPICS[Math.floor(Math.random() * FALLBACK_TOPICS.length)];
+function randomFallback(usedTopics = new Set()) {
+  const available = FALLBACK_TOPICS.filter(t => !usedTopics.has(t.toLowerCase()));
+  const pool = available.length > 0 ? available : FALLBACK_TOPICS;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // ══════════════════════════════════════
@@ -790,9 +810,9 @@ async function showGeneratingTopic() {
   const area = document.getElementById('game-area');
   area.innerHTML = `<div class="card"><div class="loading-wrap"><div class="loading-spinner"></div><div class="loading-text">AI 正在出題中…🤔</div></div></div>`;
 
-  const topic = await getAITopic();
+  const usedTopics = await getUsedTopics();
+  const topic = await getAITopic(usedTopics);
 
-  // 存到 DB
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await db.from('rounds').insert({
     topic,
@@ -807,6 +827,28 @@ async function showGeneratingTopic() {
 
   currentRound = data;
   showDrawStage(currentRound);
+}
+
+// ── 重置目前題目 ──
+async function resetCurrentRound() {
+  if (!currentRound) return;
+  openModal('🔄 重置題目', `
+    <p style="font-size:0.88rem;color:var(--ink-soft);line-height:1.7;margin-bottom:20px;">
+      確定要放棄這題「<strong>${esc(currentRound.topic)}</strong>」，換一個新題目嗎？
+    </p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" onclick="closeModal()" style="flex:1">取消</button>
+      <button class="btn btn-primary" onclick="confirmReset()" style="flex:2">換題目！</button>
+    </div>
+  `);
+}
+
+async function confirmReset() {
+  closeModal();
+  // 刪除目前這題
+  await db.from('rounds').delete().eq('id', currentRound.id);
+  currentRound = null;
+  await showGeneratingTopic();
 }
 
 // ── 畫畫階段 ──
@@ -836,6 +878,9 @@ function showDrawStage(round) {
       </div>
       <div class="mt12">
         <button class="btn btn-fun btn-full" id="submit-drawing-btn">🎨 送出畫作！</button>
+      </div>
+      <div style="text-align:center;margin-top:10px;">
+        <button class="btn btn-ghost btn-sm" onclick="resetCurrentRound()">🔄 換個題目</button>
       </div>
     </div>`;
 
@@ -987,6 +1032,7 @@ function showGuessStage(round) {
       <div id="guess-result"></div>
       <div class="mt12" style="text-align:center">
         <button class="btn btn-ghost btn-sm" id="hint-btn">💡 看提示（-10分）</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetCurrentRound()" style="margin-left:8px">🔄 換個題目</button>
       </div>
     </div>`;
 
