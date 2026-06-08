@@ -710,30 +710,23 @@ function stageFlow(active) {
 // ══════════════════════════════════════
 const FALLBACK_TOPICS = [
   // 動物
-  '貓咪打呼','企鵝溜冰','恐龍騎腳踏車','熊貓打太極','狗狗開車',
-  '兔子做蛋糕','烏龜賽跑','章魚吃壽司','飛天豬','獨角獸',
-  '河馬刷牙','長頸鹿照鏡子','北極熊曬太陽','螃蟹跳舞','貓頭鷹讀書',
-  '章魚跳舞','貓咪釣魚','熊貓吃竹子','恐龍','蠟筆小新',
+  '貓咪','狗狗','兔子','烏龜','恐龍','企鵝','熊貓','獨角獸','章魚','河馬',
+  '長頸鹿','北極熊','螃蟹','貓頭鷹','飛天豬','蝸牛','鱷魚','無尾熊','海豚','火烈鳥',
+  // 人物
+  '太空人','忍者','海盜','巫婆','公主','騎士','魔法師','超人','外星人','機器人',
+  '廚師','消防員','醫生','警察','潛水員',
   // 食物
-  '章魚燒','泡麵','彩虹蛋糕','漢堡疊很高','冰淇淋融化',
-  '拉麵打結','蛋糕著火','珍珠奶茶','小籠包','臭豆腐',
-  '鳳梨酥','便當','夜市','章魚小丸子','花枝丸',
-  // 人物動作
-  '外星人騎腳踏車','機器人跳舞','超人睡午覺','忍者煮火鍋','海盜刷牙',
-  '太空人買菜','巫婆自拍','公主打籃球','騎士玩手機','魔法師洗碗',
-  '外星人吃火鍋','機器人洗澡','超人變形金剛',
-  // 日常
-  '雨天撐傘','沙灘城堡','彩虹','閃電','雪人融化',
-  '氣球飛走','手機沒電','包包太重','腳踏車爆胎','電梯門夾人',
-  // 搞笑
-  '貓咪坐辦公室','狗狗開會','外星人迷路','機器人感冒',
-  '魚在天上飛','冰箱走路','椅子跑步','桌子跳繩','車子在水裡開',
-  // 台灣特色
-  '機車大軍','廟會','燈籠','阿嬤的菜市場','珍奶',
-  // 卡通
-  '哆啦A夢','皮卡丘','米老鼠','史努比','彩虹獨角獸','蘑菇城堡',
+  '章魚燒','泡麵','彩虹蛋糕','漢堡','冰淇淋','珍珠奶茶','小籠包','臭豆腐',
+  '鳳梨酥','便當','拉麵','壽司','披薩','鬆餅','甜甜圈',
+  // 物品
+  '降落傘','潛水艇','熱氣球','太空梭','時光機','魔法棒','寶藏箱','望遠鏡',
+  '彈弓','陀螺','風箏','溜溜球','積木','降落棋',
+  // 地點
+  '夜市','城堡','燈塔','火山','沙漠','叢林','北極','海底','彩虹橋','雲朵上的房子',
   // 自然
-  '火山爆發','海底世界','星空','極光','彩虹橋',
+  '彩虹','閃電','龍捲風','極光','流星','火山','仙人掌','蘑菇','向日葵',
+  // 台灣
+  '機車','廟','燈籠','阿嬤','夜市攤',
 ];
 
 async function getUsedTopics() {
@@ -744,8 +737,33 @@ async function getUsedTopics() {
   return new Set((data || []).map(r => r.topic.trim().toLowerCase()));
 }
 
+const HF_TOKEN = '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';
+
 async function getAITopic(usedTopics = new Set()) {
-  return randomFallback(usedTopics);
+  try {
+    const usedList = [...usedTopics].slice(0, 15).join('、');
+    const prompt = `你是一個遊戲出題機器人。請給我一個適合「你畫我猜」遊戲的題目，必須是一個名詞，例如：忍者、烏龜、冰淇淋、城堡、章魚。不要是行為或動作，2到4個中文字。${usedList ? `不要用這些已出過的題目：${usedList}。` : ''}只回答題目本身，不要任何解釋或標點。`;
+
+    const res = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: `<s>[INST] ${prompt} [/INST]`,
+        parameters: { max_new_tokens: 20, temperature: 0.9, return_full_text: false }
+      })
+    });
+
+    const data = await res.json();
+    let text = (data[0]?.generated_text || '').trim();
+    text = text.split('\n')[0].replace(/[。，！？,.!?"""''、]/g, '').trim();
+    if (text && text.length >= 2 && text.length <= 8) return text;
+    return randomFallback(usedTopics);
+  } catch(e) {
+    return randomFallback(usedTopics);
+  }
 }
 
 function randomFallback(usedTopics = new Set()) {
@@ -1074,7 +1092,6 @@ function showGuessStage(round) {
       <div id="guess-result"></div>
       <div class="mt12" style="text-align:center">
         <button class="btn btn-ghost btn-sm" id="hint-btn">💡 看提示（-10分）</button>
-        <button class="btn btn-ghost btn-sm" onclick="resetCurrentRound()" style="margin-left:8px">🔄 換個題目</button>
       </div>
     </div>`;
 
