@@ -965,48 +965,24 @@ function showSomeoneDrawing(round) {
       <div style="font-size:3rem;margin-bottom:12px">🖌️</div>
       <div style="font-family:var(--font-fun);font-size:1.2rem;font-weight:900;margin-bottom:8px">有人正在畫畫！</div>
       <div style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:20px;line-height:1.6;">
-        等他畫好之後你就可以來猜<br>或者你也可以拿新題目來畫！
+        等他畫好之後你就可以來猜了 😆<br>
+        頁面每 5 秒自動更新
       </div>
-      <div style="display:flex;flex-direction:column;gap:10px;max-width:280px;margin:0 auto 20px;">
-        <button class="btn btn-fun" id="draw-new-btn">🎨 我也要畫！拿新題目</button>
-        <button class="btn btn-ghost" id="wait-btn">👀 等他畫好再猜</button>
-      </div>
-      <div id="waiting-indicator" style="display:none">
-        <div class="loading-spinner" style="margin:0 auto 8px"></div>
-        <div style="font-size:0.78rem;color:#ccc;font-family:var(--font-fun)">每 5 秒自動更新</div>
-      </div>
+      <div class="loading-spinner" style="margin:0 auto"></div>
     </div>`;
 
-  document.getElementById('draw-new-btn').addEventListener('click', async () => {
-    document.getElementById('draw-new-btn').textContent = '出題中…';
-    document.getElementById('draw-new-btn').disabled = true;
-    await showGeneratingTopic();
-  });
-
-  let pollTimer = null;
-  document.getElementById('wait-btn').addEventListener('click', () => {
-    document.getElementById('wait-btn').style.display = 'none';
-    document.getElementById('draw-new-btn').style.display = 'none';
-    document.getElementById('waiting-indicator').style.display = 'block';
-    pollTimer = setInterval(async () => {
-      const { data } = await db.from('rounds').select('*').eq('id', round.id).single();
-      if (data?.drawing_url) {
-        // 畫好了，去猜
-        clearInterval(pollTimer);
-        currentRound = data;
-        if (myIP && currentRound.drawer_ip === myIP) {
-          showDrawerWaiting(currentRound);
-        } else {
-          showGuessStage(currentRound);
-        }
-      } else if (data?.drawing_lock_expires && new Date(data.drawing_lock_expires) < new Date()) {
-        // 鎖已過期，那個人跑掉了，我來接著畫
-        clearInterval(pollTimer);
-        currentRound = data;
-        showDrawStage(currentRound);
-      }
-    }, 5000);
-  });
+  const poll = setInterval(async () => {
+    const { data } = await db.from('rounds').select('*').eq('id', round.id).single();
+    if (data?.drawing_url) {
+      clearInterval(poll);
+      currentRound = data;
+      showGuessStage(currentRound);
+    } else if (data?.drawing_lock_expires && new Date(data.drawing_lock_expires) < new Date()) {
+      clearInterval(poll);
+      currentRound = data;
+      showDrawStage(currentRound);
+    }
+  }, 5000);
 }
 
 // ── 畫畫階段 ──
@@ -1214,26 +1190,17 @@ function showDrawerWaiting(round) {
         你是畫圖者，不能猜這題喔 😄
       </div>
       <img src="${esc(round.drawing_url)}" style="width:100%;max-width:360px;border-radius:var(--radius-sm);border:2px solid var(--border);margin-bottom:20px;">
-      <div style="display:flex;flex-direction:column;gap:10px;max-width:280px;margin:0 auto 16px;">
-        <button class="btn btn-fun" id="drawer-draw-new-btn">🎨 畫下一題</button>
-        <button class="btn btn-ghost" id="drawer-guess-other-btn">🤔 去猜別人的題目</button>
+      <div style="max-width:280px;margin:0 auto 16px;">
+        <button class="btn btn-ghost btn-full" id="drawer-guess-other-btn">🤔 去猜別人的題目</button>
       </div>
       <div style="font-size:0.78rem;color:#ccc;font-family:var(--font-fun)">頁面會每 10 秒自動更新</div>
     </div>`;
-
-  document.getElementById('drawer-draw-new-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('drawer-draw-new-btn');
-    btn.textContent = '出題中…';
-    btn.disabled = true;
-    await showGeneratingTopic();
-  });
 
   document.getElementById('drawer-guess-other-btn').addEventListener('click', async () => {
     const btn = document.getElementById('drawer-guess-other-btn');
     btn.textContent = '尋找題目…';
     btn.disabled = true;
 
-    // 找一題不是自己畫的、還沒猜到的
     const { data } = await db
       .from('rounds')
       .select('*')
@@ -1254,7 +1221,6 @@ function showDrawerWaiting(round) {
     }
   });
 
-  // 每 10 秒重新檢查是否已有人猜到
   const poll = setInterval(async () => {
     const { data } = await db.from('rounds').select('guessed').eq('id', round.id).single();
     if (data?.guessed) {
@@ -1290,8 +1256,7 @@ function showGuessStage(round) {
       </div>
       <div id="guess-result"></div>
       <div class="mt12" style="text-align:center">
-        <button class="btn btn-ghost btn-sm" id="hint-btn">💡 看提示（-10分）</button>
-        <button class="btn btn-ghost btn-sm" id="skip-guess-btn" style="margin-left:8px">⏭ 換題猜</button>
+        <button class="btn btn-ghost btn-sm" id="hint-btn">💡 看提示</button>
       </div>
     </div>`;
 
@@ -1322,13 +1287,6 @@ function showGuessStage(round) {
     const guess = document.getElementById('guess-input').value.trim();
     if (!guess) return;
     await submitGuess(round, guess);
-  });
-
-  document.getElementById('skip-guess-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('skip-guess-btn');
-    btn.textContent = '出題中…';
-    btn.disabled = true;
-    await showGeneratingTopic();
   });
 }
 
