@@ -1088,17 +1088,8 @@ async function loadHistory() {
   }
 
   section.style.display = 'block';
-  list.innerHTML = data.map(r => historyItem(r)).join('');
-  document.querySelectorAll('.history-header').forEach(h => {
-    h.addEventListener('click', () => {
-      const item = h.closest('.history-item');
-      item.classList.toggle('open');
-      loadComments(r => r, item.dataset.id);
-    });
-  });
-
-  // Re-bind with correct round data
   list.innerHTML = data.map(r => historyItemHtml(r)).join('');
+
   data.forEach(r => {
     const item = document.querySelector(`.history-item[data-id="${r.id}"]`);
     if (!item) return;
