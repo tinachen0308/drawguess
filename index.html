@@ -830,11 +830,28 @@ async function getMyIP() {
   }
 }
 
+// ── 自動清理：只保留最新 7 筆已完成的 round ──
+async function cleanupOldRounds() {
+  // 取所有已完成的 round，按時間新到舊排列
+  const { data, error } = await db
+    .from('rounds')
+    .select('id, guessed_at')
+    .eq('guessed', true)
+    .order('guessed_at', { ascending: false });
+
+  if (error || !data || data.length <= 7) return;
+
+  // 第 8 筆之後的都刪掉（comments 有 ON DELETE CASCADE 會一起刪）
+  const toDelete = data.slice(7).map(r => r.id);
+  await db.from('rounds').delete().in('id', toDelete);
+}
+
 async function initGame() {
   const area = document.getElementById('game-area');
   area.innerHTML = `<div class="loading-wrap"><div class="loading-spinner"></div><div class="loading-text">連結遊戲中…</div></div>`;
 
   await getMyIP();
+  await cleanupOldRounds(); // 每次刷新自動清理
 
   const now = new Date().toISOString();
 
@@ -1279,14 +1296,28 @@ function showGuessStage(round) {
     toast(`提示：第 ${idx+1} 個字是「${chars[idx]}」`);
   });
 
+  let isSubmitting = false;
+
   document.getElementById('guess-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('submit-guess-btn').click();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!isSubmitting) document.getElementById('submit-guess-btn').click();
+    }
   });
 
   document.getElementById('submit-guess-btn').addEventListener('click', async () => {
+    if (isSubmitting) return;
     const guess = document.getElementById('guess-input').value.trim();
     if (!guess) return;
+    isSubmitting = true;
+    document.getElementById('submit-guess-btn').disabled = true;
     await submitGuess(round, guess);
+    if (!currentRound.guessed) {
+      isSubmitting = false;
+      document.getElementById('submit-guess-btn').disabled = false;
+      document.getElementById('guess-input').value = '';
+      document.getElementById('guess-input').focus();
+    }
   });
 }
 
@@ -1294,13 +1325,17 @@ async function submitGuess(round, guess) {
   const correct = guess.trim() === round.topic.trim();
   const resultEl = document.getElementById('guess-result');
 
-  // 記錄這次猜測到 guesses 陣列
+  // 去重：跟上一次一樣就不記錄
   const prevGuesses = round.guesses || [];
-  const newGuesses = [...prevGuesses, { guess: guess.trim(), correct, time: new Date().toISOString() }];
-  round.guesses = newGuesses;
+  const lastGuess = prevGuesses[prevGuesses.length - 1];
+  const isDuplicate = lastGuess && lastGuess.guess === guess.trim();
 
-  // 更新 DB（不管對錯都記下來）
-  await db.from('rounds').update({ guesses: newGuesses }).eq('id', round.id);
+  let newGuesses = prevGuesses;
+  if (!isDuplicate) {
+    newGuesses = [...prevGuesses, { guess: guess.trim(), correct, time: new Date().toISOString() }];
+    round.guesses = newGuesses;
+    await db.from('rounds').update({ guesses: newGuesses }).eq('id', round.id);
+  }
 
   const attemptCount = newGuesses.length;
 
