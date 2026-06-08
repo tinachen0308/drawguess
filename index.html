@@ -819,9 +819,14 @@ async function initGame() {
   currentRound = rounds[0];
 
   if (!currentRound.drawing_url) {
-    showDrawStage(currentRound);
+    const lockExpired = currentRound.drawing_lock_expires && new Date(currentRound.drawing_lock_expires) < new Date();
+    if (currentRound.drawing_lock_ip && currentRound.drawing_lock_ip !== myIP && !lockExpired) {
+      // 有人正在畫，且鎖還沒過期
+      showSomeoneDrawing(currentRound);
+    } else {
+      showDrawStage(currentRound);
+    }
   } else if (!currentRound.guessed) {
-    // 檢查是否是畫圖者本人
     if (myIP && currentRound.drawer_ip === myIP) {
       showDrawerWaiting(currentRound);
     } else {
@@ -880,8 +885,78 @@ async function confirmReset() {
   await showGeneratingTopic();
 }
 
+// ── 有人正在畫的等待畫面 ──
+function showSomeoneDrawing(round) {
+  const area = document.getElementById('game-area');
+  area.innerHTML = `
+    ${stageFlow(1)}
+    <div class="card" style="text-align:center">
+      <div style="font-size:3rem;margin-bottom:12px">🖌️</div>
+      <div style="font-family:var(--font-fun);font-size:1.2rem;font-weight:900;margin-bottom:8px">有人正在畫畫！</div>
+      <div style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:20px;line-height:1.6;">
+        等他畫好之後你就可以來猜<br>或者你也可以拿新題目來畫！
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:280px;margin:0 auto 20px;">
+        <button class="btn btn-fun" id="draw-new-btn">🎨 我也要畫！拿新題目</button>
+        <button class="btn btn-ghost" id="wait-btn">👀 等他畫好再猜</button>
+      </div>
+      <div id="waiting-indicator" style="display:none">
+        <div class="loading-spinner" style="margin:0 auto 8px"></div>
+        <div style="font-size:0.78rem;color:#ccc;font-family:var(--font-fun)">每 5 秒自動更新</div>
+      </div>
+    </div>`;
+
+  document.getElementById('draw-new-btn').addEventListener('click', async () => {
+    document.getElementById('draw-new-btn').textContent = '出題中…';
+    document.getElementById('draw-new-btn').disabled = true;
+    await showGeneratingTopic();
+  });
+
+  let pollTimer = null;
+  document.getElementById('wait-btn').addEventListener('click', () => {
+    document.getElementById('wait-btn').style.display = 'none';
+    document.getElementById('draw-new-btn').style.display = 'none';
+    document.getElementById('waiting-indicator').style.display = 'block';
+    pollTimer = setInterval(async () => {
+      const { data } = await db.from('rounds').select('*').eq('id', round.id).single();
+      if (data?.drawing_url) {
+        // 畫好了，去猜
+        clearInterval(pollTimer);
+        currentRound = data;
+        if (myIP && currentRound.drawer_ip === myIP) {
+          showDrawerWaiting(currentRound);
+        } else {
+          showGuessStage(currentRound);
+        }
+      } else if (data?.drawing_lock_expires && new Date(data.drawing_lock_expires) < new Date()) {
+        // 鎖已過期，那個人跑掉了，我來接著畫
+        clearInterval(pollTimer);
+        currentRound = data;
+        showDrawStage(currentRound);
+      }
+    }, 5000);
+  });
+}
+
 // ── 畫畫階段 ──
-function showDrawStage(round) {
+async function showDrawStage(round) {
+  const lockExpiry = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5分鐘後過期
+
+  // 嘗試搶佔鎖定：只有 lock 是 null 或已過期才能搶到
+  const now = new Date().toISOString();
+  const { data: locked, error } = await db
+    .from('rounds')
+    .update({ drawing_lock_ip: myIP, drawing_lock_expires: lockExpiry })
+    .eq('id', round.id)
+    .or(`drawing_lock_ip.is.null,drawing_lock_expires.lt.${now}`)
+    .select()
+    .single();
+
+  if (error || !locked) {
+    showSomeoneDrawing(round);
+    return;
+  }
+
   const area = document.getElementById('game-area');
   area.innerHTML = `
     ${stageFlow(1)}
@@ -1092,6 +1167,7 @@ function showGuessStage(round) {
       <div id="guess-result"></div>
       <div class="mt12" style="text-align:center">
         <button class="btn btn-ghost btn-sm" id="hint-btn">💡 看提示（-10分）</button>
+        <button class="btn btn-ghost btn-sm" id="skip-guess-btn" style="margin-left:8px">⏭ 換題猜</button>
       </div>
     </div>`;
 
@@ -1122,6 +1198,13 @@ function showGuessStage(round) {
     const guess = document.getElementById('guess-input').value.trim();
     if (!guess) return;
     await submitGuess(round, guess);
+  });
+
+  document.getElementById('skip-guess-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('skip-guess-btn');
+    btn.textContent = '出題中…';
+    btn.disabled = true;
+    await showGeneratingTopic();
   });
 }
 
