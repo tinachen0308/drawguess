@@ -1294,11 +1294,24 @@ async function submitGuess(round, guess) {
   const correct = guess.trim() === round.topic.trim();
   const resultEl = document.getElementById('guess-result');
 
+  // 記錄這次猜測到 guesses 陣列
+  const prevGuesses = round.guesses || [];
+  const newGuesses = [...prevGuesses, { guess: guess.trim(), correct, time: new Date().toISOString() }];
+  round.guesses = newGuesses;
+
+  // 更新 DB（不管對錯都記下來）
+  await db.from('rounds').update({ guesses: newGuesses }).eq('id', round.id);
+
+  const attemptCount = newGuesses.length;
+
   resultEl.innerHTML = `
     <div class="result-banner ${correct ? 'correct' : 'wrong'}" style="margin-top:14px">
       <div class="result-emoji">${correct ? '🎉' : '😅'}</div>
-      <div class="result-text">${correct ? '答對了！！！' : '答錯了…'}</div>
-      <div class="result-answer">${correct ? `題目就是「${esc(round.topic)}」！` : `你猜：「${esc(guess)}」`}</div>
+      <div class="result-text">${correct ? `答對了！！！` : '答錯了…'}</div>
+      <div class="result-answer">${correct
+        ? `第 ${attemptCount} 次就猜中！題目是「${esc(round.topic)}」！`
+        : `第 ${attemptCount} 次：「${esc(guess)}」❌`}
+      </div>
     </div>`;
 
   if (correct) {
@@ -1373,13 +1386,36 @@ async function loadHistory() {
 }
 
 function historyItemHtml(r) {
+  const guesses = r.guesses || [];
+  const wrongGuesses = guesses.filter(g => !g.correct);
+  const totalAttempts = guesses.length;
+
+  const guessRecordHtml = guesses.length > 0 ? `
+    <div style="margin-bottom:12px;">
+      <div style="font-family:var(--font-fun);font-size:0.82rem;font-weight:800;color:var(--ink-soft);margin-bottom:8px;">
+        🎯 猜題紀錄（共猜 ${totalAttempts} 次）
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${guesses.map((g, i) => `
+          <div style="
+            font-family:var(--font-fun);font-size:0.72rem;font-weight:700;
+            padding:3px 10px;border-radius:50px;
+            background:${g.correct ? 'var(--sky)' : '#f5f5f5'};
+            color:${g.correct ? 'white' : 'var(--ink-soft)'};
+            border:1.5px solid ${g.correct ? 'var(--sky)' : 'var(--border)'};
+          ">
+            ${i+1}. ${esc(g.guess)} ${g.correct ? '✓' : '✗'}
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
   return `
   <div class="history-item" data-id="${r.id}">
     <div class="history-header">
       <div class="history-emoji">🎨</div>
       <div class="history-meta">
         <div class="history-topic">「${esc(r.topic)}」</div>
-        <div class="history-info">${timeAgo(r.guessed_at || r.created_at)}</div>
+        <div class="history-info">${timeAgo(r.guessed_at || r.created_at)}${totalAttempts > 0 ? `・猜了 ${totalAttempts} 次` : ''}</div>
       </div>
       <div class="history-badge">已完成</div>
     </div>
@@ -1387,6 +1423,7 @@ function historyItemHtml(r) {
       <div class="history-inner">
         ${r.drawing_url ? `<img class="history-drawing" src="${esc(r.drawing_url)}">` : ''}
         <div class="history-answer">答案：<strong>${esc(r.topic)}</strong></div>
+        ${guessRecordHtml}
         <div class="divider"></div>
         <div class="card-title" style="font-size:0.88rem">💬 留言</div>
         <div class="comment-list" id="comments-${r.id}">
