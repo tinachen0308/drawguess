@@ -836,27 +836,55 @@ async function initGame() {
 
   await getMyIP();
 
-  // 取得最新未結束的 round
-  const { data: rounds, error } = await db
+  const now = new Date().toISOString();
+
+  // 優先找：還沒有畫的 round（不是自己鎖的）
+  const { data: undrawn } = await db
     .from('rounds')
     .select('*')
-    .gte('expires_at', new Date().toISOString())
+    .gte('expires_at', now)
+    .is('drawing_url', null)
+    .eq('guessed', false)
     .order('created_at', { ascending: false })
-    .limit(1);
+    .limit(10);
 
-  if (error) {
-    area.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">無法連線，請確認 Supabase 設定<br><small>${esc(error.message)}</small></div></div>`;
-    loadHistory();
-    return;
+  // 找還沒被猜到、已有畫作的 round
+  const { data: unguessed } = await db
+    .from('rounds')
+    .select('*')
+    .gte('expires_at', now)
+    .not('drawing_url', 'is', null)
+    .eq('guessed', false)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  const { data: error } = await db.from('rounds').select('id').limit(1);
+
+  // 決定要顯示哪一筆
+  let round = null;
+
+  if (unguessed && unguessed.length > 0) {
+    // 有未猜到的畫 → 優先去猜（除非是自己畫的）
+    const others = unguessed.filter(r => r.drawer_ip !== myIP);
+    const mine = unguessed.filter(r => r.drawer_ip === myIP);
+    if (others.length > 0) {
+      round = others[0];
+    } else if (mine.length > 0) {
+      // 只有自己的畫在等，看看有沒有未畫的可以去畫
+      round = mine[0];
+    }
   }
 
-  if (!rounds || rounds.length === 0) {
-    // 沒有題目，產生新題目
+  if (!round && undrawn && undrawn.length > 0) {
+    round = undrawn[0];
+  }
+
+  if (!round) {
     showGeneratingTopic();
     return;
   }
 
-  currentRound = rounds[0];
+  currentRound = round;
 
   if (!currentRound.drawing_url) {
     const lockExpired = currentRound.drawing_lock_expires && new Date(currentRound.drawing_lock_expires) < new Date();
@@ -1028,7 +1056,7 @@ async function tryLockRound(round) {
     .from('rounds')
     .update({ drawing_lock_ip: myIP, drawing_lock_expires: lockExpiry })
     .eq('id', round.id)
-    .or(`drawing_lock_ip.is.null,drawing_lock_expires.lt.${now}`)
+    .or(`drawing_lock_ip.is.null,drawing_lock_expires.lt.${now},drawing_lock_ip.eq.${myIP}`)
     .select()
     .single();
 
