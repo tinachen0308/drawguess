@@ -709,24 +709,89 @@ function stageFlow(active) {
 // AI TOPIC GENERATOR
 // ══════════════════════════════════════
 const FALLBACK_TOPICS = [
-  // 動物
+  // 動物 (60題)
   '貓咪','狗狗','兔子','烏龜','恐龍','企鵝','熊貓','獨角獸','章魚','河馬',
   '長頸鹿','北極熊','螃蟹','貓頭鷹','飛天豬','蝸牛','鱷魚','無尾熊','海豚','火烈鳥',
-  // 人物
-  '太空人','忍者','海盜','巫婆','公主','騎士','魔法師','超人','外星人','機器人',
-  '廚師','消防員','醫生','警察','潛水員',
-  // 食物
+  '獅子','老虎','大象','猩猩','斑馬','犀牛','袋鼠','蜘蛛','蜜蜂','蝴蝶',
+  '鯊魚','章魚','水母','海馬','烏賊','龍蝦','寄居蟹','海星','河豚','飛魚',
+  '貓頭鷹','鸚鵡','孔雀','火鶴','蜂鳥','老鷹','天鵝','企鵝','鴕鳥','信天翁',
+  '變色龍','壁虎','蜥蜴','眼鏡蛇','蟒蛇','青蛙','蠑螈','烏龜','陸龜','海龜',
+
+  // 食物 (80題)
   '章魚燒','泡麵','彩虹蛋糕','漢堡','冰淇淋','珍珠奶茶','小籠包','臭豆腐',
-  '鳳梨酥','便當','拉麵','壽司','披薩','鬆餅','甜甜圈',
-  // 物品
-  '降落傘','潛水艇','熱氣球','太空梭','時光機','魔法棒','寶藏箱','望遠鏡',
-  '彈弓','陀螺','風箏','溜溜球','積木','降落棋',
-  // 地點
-  '夜市','城堡','燈塔','火山','沙漠','叢林','北極','海底','彩虹橋','雲朵上的房子',
-  // 自然
-  '彩虹','閃電','龍捲風','極光','流星','火山','仙人掌','蘑菇','向日葵',
-  // 台灣
-  '機車','廟','燈籠','阿嬤','夜市攤',
+  '鳳梨酥','便當','拉麵','壽司','披薩','鬆餅','甜甜圈','可頌','馬卡龍','提拉米蘇',
+  '火鍋','燒烤','刈包','蚵仔煎','滷肉飯','牛肉麵','擔仔麵','米粉','冬粉','粽子',
+  '湯圓','年糕','蘿蔔糕','芋圓','豆花','仙草','愛玉','布丁','奶酪','慕斯',
+  '炸雞','薯條','洋蔥圈','熱狗','玉米狗','可樂餅','春捲','蛋餅','燒餅','油條',
+  '芒果','草莓','西瓜','榴槤','鳳梨','荔枝','龍眼','木瓜','百香果','火龍果',
+  '巧克力','棉花糖','軟糖','硬糖','棒棒糖','爆米花','洋芋片','仙貝','旺仔','鈴木餅',
+  '咖啡','抹茶','可可','奶昔','果汁','汽水','啤酒','紅酒','清酒','奶茶',
+
+  // 人物職業 (60題)
+  '太空人','忍者','海盜','巫婆','公主','騎士','魔法師','超人','外星人','機器人',
+  '廚師','消防員','醫生','警察','潛水員','登山家','賽車手','魔術師','小丑','馬戲團員',
+  '武士','弓箭手','海盜船長','美人魚','精靈','矮人','巨人','吸血鬼','狼人','木乃伊',
+  '牛仔','原住民','維京人','羅馬士兵','中世紀國王','中世紀王后','執事','女僕','管家','偵探',
+  '超級英雄','反派','特務','間諜','賞金獵人','傭兵','遊俠','法師','牧師','德魯伊',
+  '歌手','舞者','演員','畫家','雕刻家','建築師','作家','詩人','音樂家','指揮家',
+
+  // 交通工具 (40題)
+  '腳踏車','機車','汽車','公車','火車','高鐵','捷運','計程車','救護車','消防車',
+  '警車','卡車','挖土機','起重機','推土機','垃圾車','郵差車','冰淇淋車','露營車','拖車',
+  '飛機','直升機','熱氣球','降落傘','滑翔機','噴射機','太空梭','火箭','UFO','飛碟',
+  '帆船','潛水艇','郵輪','快艇','獨木舟','划槳','衝浪板','水上摩托車','氣墊船','渡輪',
+
+  // 地點場景 (50題)
+  '夜市','城堡','燈塔','火山','沙漠','叢林','北極','海底','彩虹橋','雲端城市',
+  '太空站','海底基地','樹屋','地下城','天空之城','水晶宮','冰雪城堡','沙堡','帳篷','茅草屋',
+  '醫院','學校','圖書館','博物館','動物園','水族館','遊樂園','電影院','咖啡廳','書店',
+  '沙灘','森林','山頂','瀑布','湖泊','河流','洞穴','峽谷','草原','雪山',
+  '廟','神社','金字塔','鐵塔','長城','比薩斜塔','自由女神','大笨鐘','鳥巢','艾菲爾鐵塔',
+
+  // 自然現象 (30題)
+  '彩虹','閃電','龍捲風','極光','流星','火山爆發','海嘯','地震','颱風','暴風雪',
+  '日蝕','月蝕','滿月','新月','日出','日落','星空','銀河','彗星','隕石',
+  '霧','露水','霜','冰柱','雪花','冰川','珊瑚礁','溫泉','泥漿池','鹽湖',
+
+  // 植物 (30題)
+  '向日葵','玫瑰','櫻花','蓮花','仙人掌','捕蠅草','含羞草','四葉草','蒲公英','薰衣草',
+  '竹子','椰子樹','聖誕樹','橡樹','楓樹','柳樹','松樹','仙人掌','蘑菇','苔蘚',
+  '葡萄','草莓苗','蘋果樹','梨樹','桃樹','芒果樹','榕樹','桉樹','棕櫚樹','銀杏',
+
+  // 物品道具 (60題)
+  '降落傘','望遠鏡','指南針','放大鏡','顯微鏡','望遠鏡','時鐘','沙漏','溫度計','天平',
+  '魔法棒','寶藏箱','藏寶圖','鑰匙','鎖','密碼箱','保險箱','手銬','望遠鏡','潛望鏡',
+  '吉他','鋼琴','小提琴','鼓','薩克斯風','長笛','豎琴','烏克麗麗','手風琴','二胡',
+  '足球','籃球','棒球','網球','羽球','桌球','保齡球','高爾夫球','橄欖球','排球',
+  '劍','盾牌','弓箭','長矛','斧頭','鐮刀','錘子','螺絲起子','扳手','電鑽',
+  '傘','帽子','圍巾','手套','靴子','拖鞋','高跟鞋','溜冰鞋','滑雪板','蛙鏡',
+
+  // 台灣特色 (30題)
+  '機車','廟','燈籠','阿嬤','夜市攤','便利商店','檳榔攤','路邊攤','鐵皮屋','騎樓',
+  '媽祖','城隍爺','土地公','關公','月老','太子爺','八家將','陣頭','電子花車','廟會',
+  '台灣黑熊','梅花鹿','石虎','穿山甲','台灣藍鵲','帝雉','白鷺鷥','夜鷺','紫嘯鶇','大冠鷲',
+
+  // 節慶 (20題)
+  '聖誕樹','聖誕老人','馴鹿','雪橇','南瓜燈','骷髏','女巫','蝙蝠','蜘蛛網','糖果',
+  '煙火','燈籠','紅包','鞭炮','年糕','元宵','粽子','月餅','湯圓','年夜飯',
+
+  // 科技 (30題)
+  '機器人','電腦','手機','平板','耳機','遊戲機','無人機','3D列印機','智慧手錶','電動車',
+  '太陽能板','風力發電機','火箭','衛星','太空梭','潛水艇','航空母艦','坦克','雷達','天線',
+  '試管','燒杯','顯微鏡','試管架','離心機','培養皿','注射器','聽診器','X光機','手術刀',
+
+  // 神話生物 (30題)
+  '龍','鳳凰','麒麟','獨角獸','人魚','半人馬','獅鷲','九尾狐','天狗','河童',
+  '精靈','矮人','巨人','吸血鬼','狼人','木乃伊','殭屍','幽靈','惡魔','天使',
+  '美杜莎','獨眼巨人','海妖','樹精','水精靈','火精靈','地精','風精靈','雷神','海神',
+
+  // 抽象概念可視化 (60題)
+  '夢想','希望','愛情','友情','勇氣','自由','和平','幸運','秘密','謊言',
+  '時間','空間','無限','永恆','孤獨','思念','懷念','驚喜','恐懼','快樂',
+  '音樂','舞蹈','繪畫','詩歌','故事','電影','戲劇','魔術','雜技','馬戲',
+  '春天','夏天','秋天','冬天','黎明','黃昏','午夜','正午','週末','假期',
+  '生日','婚禮','畢業','旅行','冒險','探索','發現','創造','發明','革命',
+  '雨天','晴天','颱風天','下雪天','彩虹天','霧天','打雷','閃電','狂風','微風',
 ];
 
 async function getUsedTopics() {
@@ -737,33 +802,8 @@ async function getUsedTopics() {
   return new Set((data || []).map(r => r.topic.trim().toLowerCase()));
 }
 
-const HF_TOKEN = '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';
-
 async function getAITopic(usedTopics = new Set()) {
-  try {
-    const usedList = [...usedTopics].slice(0, 15).join('、');
-    const prompt = `你是一個遊戲出題機器人。請給我一個適合「你畫我猜」遊戲的題目，必須是一個名詞，例如：忍者、烏龜、冰淇淋、城堡、章魚。不要是行為或動作，2到4個中文字。${usedList ? `不要用這些已出過的題目：${usedList}。` : ''}只回答題目本身，不要任何解釋或標點。`;
-
-    const res = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: `<s>[INST] ${prompt} [/INST]`,
-        parameters: { max_new_tokens: 20, temperature: 0.9, return_full_text: false }
-      })
-    });
-
-    const data = await res.json();
-    let text = (data[0]?.generated_text || '').trim();
-    text = text.split('\n')[0].replace(/[。，！？,.!?"""''、]/g, '').trim();
-    if (text && text.length >= 2 && text.length <= 8) return text;
-    return randomFallback(usedTopics);
-  } catch(e) {
-    return randomFallback(usedTopics);
-  }
+  return randomFallback(usedTopics);
 }
 
 function randomFallback(usedTopics = new Set()) {
@@ -940,23 +980,7 @@ function showSomeoneDrawing(round) {
 
 // ── 畫畫階段 ──
 async function showDrawStage(round) {
-  const lockExpiry = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5分鐘後過期
-
-  // 嘗試搶佔鎖定：只有 lock 是 null 或已過期才能搶到
-  const now = new Date().toISOString();
-  const { data: locked, error } = await db
-    .from('rounds')
-    .update({ drawing_lock_ip: myIP, drawing_lock_expires: lockExpiry })
-    .eq('id', round.id)
-    .or(`drawing_lock_ip.is.null,drawing_lock_expires.lt.${now}`)
-    .select()
-    .single();
-
-  if (error || !locked) {
-    showSomeoneDrawing(round);
-    return;
-  }
-
+  canvasLocked = false; // 每次進畫畫頁面重置鎖定狀態
   const area = document.getElementById('game-area');
   area.innerHTML = `
     ${stageFlow(1)}
@@ -988,14 +1012,36 @@ async function showDrawStage(round) {
       </div>
     </div>`;
 
-  initCanvas();
+  initCanvas(round); // 傳入 round，第一筆才鎖
   document.getElementById('submit-drawing-btn').addEventListener('click', submitDrawing);
 }
 
 // ── CANVAS ──
 let ctx, isDrawing = false, currentColor = '#2D2D2D', currentSize = 4, isEraser = false;
+let canvasLocked = false; // 是否已鎖定（第一筆才觸發）
 
-function initCanvas() {
+async function tryLockRound(round) {
+  if (canvasLocked) return true;
+  const lockExpiry = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+  const { data: locked, error } = await db
+    .from('rounds')
+    .update({ drawing_lock_ip: myIP, drawing_lock_expires: lockExpiry })
+    .eq('id', round.id)
+    .or(`drawing_lock_ip.is.null,drawing_lock_expires.lt.${now}`)
+    .select()
+    .single();
+
+  if (error || !locked) {
+    // 搶不到鎖，有人比我先畫了
+    showSomeoneDrawing(round);
+    return false;
+  }
+  canvasLocked = true;
+  return true;
+}
+
+function initCanvas(round) {
   const canvas = document.getElementById('draw-canvas');
   const wrap = canvas.parentElement;
   const W = wrap.clientWidth - 4;
@@ -1047,10 +1093,14 @@ function initCanvas() {
 
   function startDraw(e) {
     e.preventDefault();
-    isDrawing = true;
-    const p = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
+    // 第一筆畫下去才鎖定
+    tryLockRound(round).then(ok => {
+      if (!ok) return; // 搶不到鎖，已跳到等待畫面
+      isDrawing = true;
+      const p = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    });
   }
   function draw(e) {
     e.preventDefault();
@@ -1121,14 +1171,50 @@ function showDrawerWaiting(round) {
     <div class="card" style="text-align:center">
       <div style="font-size:3rem;margin-bottom:12px">👀</div>
       <div style="font-family:var(--font-fun);font-size:1.2rem;font-weight:900;margin-bottom:8px">等待別人來猜！</div>
-      <div style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:20px;line-height:1.6;">
+      <div style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:16px;line-height:1.6;">
         你畫了「<strong>${esc(round.topic)}</strong>」<br>
-        你是畫圖者，不能猜這題喔 😄<br>
-        把網頁分享給朋友來猜吧！
+        你是畫圖者，不能猜這題喔 😄
       </div>
       <img src="${esc(round.drawing_url)}" style="width:100%;max-width:360px;border-radius:var(--radius-sm);border:2px solid var(--border);margin-bottom:20px;">
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:280px;margin:0 auto 16px;">
+        <button class="btn btn-fun" id="drawer-draw-new-btn">🎨 畫下一題</button>
+        <button class="btn btn-ghost" id="drawer-guess-other-btn">🤔 去猜別人的題目</button>
+      </div>
       <div style="font-size:0.78rem;color:#ccc;font-family:var(--font-fun)">頁面會每 10 秒自動更新</div>
     </div>`;
+
+  document.getElementById('drawer-draw-new-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('drawer-draw-new-btn');
+    btn.textContent = '出題中…';
+    btn.disabled = true;
+    await showGeneratingTopic();
+  });
+
+  document.getElementById('drawer-guess-other-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('drawer-guess-other-btn');
+    btn.textContent = '尋找題目…';
+    btn.disabled = true;
+
+    // 找一題不是自己畫的、還沒猜到的
+    const { data } = await db
+      .from('rounds')
+      .select('*')
+      .eq('guessed', false)
+      .not('drawing_url', 'is', null)
+      .neq('drawer_ip', myIP)
+      .gte('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      currentRound = data[0];
+      showGuessStage(currentRound);
+    } else {
+      toast('目前沒有其他可以猜的題目，等別人畫好再來！');
+      btn.textContent = '🤔 去猜別人的題目';
+      btn.disabled = false;
+    }
+  });
 
   // 每 10 秒重新檢查是否已有人猜到
   const poll = setInterval(async () => {
