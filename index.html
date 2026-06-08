@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>你畫我猜 🖍️</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --sun: #FFD93D;
+  --sky: #6BCB77;
+  --blue: #4D96FF;
+  --red: #FF6B6B;
+  --orange: #FF9F45;
+  --purple: #C77DFF;
+  --pink: #FF6FCF;
+  --cream: #FFF8E7;
+  --ink: #2D2D2D;
+  --ink-soft: #5a5a5a;
+  --paper: #FFFDF5;
+  --border: #E8E0D0;
+  --shadow: rgba(45,45,45,0.12);
+  --radius: 18px;
+  --radius-sm: 10px;
+  --font-fun: 'Nunito', sans-serif;
+  --font-body: 'Noto Sans TC', sans-serif;
+}
+
+html, body {
+  font-family: var(--font-body);
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── BG DOODLES ── */
+.bg-doodles {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+}
+.bg-doodles span {
+  position: absolute;
+  font-size: 2rem;
+  opacity: 0.07;
+  animation: floatDoodle var(--d,8s) ease-in-out infinite var(--delay,0s);
+  user-select: none;
+}
+@keyframes floatDoodle {
+  0%,100% { transform: translateY(0) rotate(var(--r,0deg)); }
+  50% { transform: translateY(-18px) rotate(calc(var(--r,0deg) + 8deg)); }
+}
+
+/* ── LAYOUT ── */
+.page {
+  position: relative; z-index: 1;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 16px 80px;
+}
+
+/* ── HEADER ── */
+header {
+  text-align: center;
+  padding: 40px 0 24px;
+}
+.logo {
+  font-family: var(--font-fun);
+  font-size: clamp(2.2rem, 7vw, 3.8rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  display: inline-block;
+}
+.logo .y { color: var(--red); }
+.logo .h { color: var(--blue); }
+.logo .w { color: var(--sky); }
+.logo .c { color: var(--orange); }
+.logo-sub {
+  font-family: var(--font-fun);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 0.12em;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+/* ── CARDS ── */
+.card {
+  background: white;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0 var(--border);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-family: var(--font-fun);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── STAGE INDICATOR ── */
+.stage-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 24px;
+}
+.stage-step {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px;
+}
+.stage-dot {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--border);
+  border: 2.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  transition: all 0.3s;
+}
+.stage-step.active .stage-dot {
+  background: var(--sun);
+  border-color: var(--orange);
+  box-shadow: 0 0 0 4px rgba(255,217,61,0.25);
+}
+.stage-step.done .stage-dot {
+  background: var(--sky);
+  border-color: var(--sky);
+}
+.stage-label {
+  font-family: var(--font-fun);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.stage-line {
+  width: 40px; height: 2.5px;
+  background: var(--border);
+  margin-bottom: 18px;
+}
+@media (max-width: 480px) { .stage-line { width: 22px; } }
+
+/* ── TOPIC CARD ── */
+.topic-reveal {
+  text-align: center;
+  padding: 32px 20px;
+}
+.topic-label {
+  font-family: var(--font-fun);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+.topic-word {
+  font-family: var(--font-fun);
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1.1;
+  background: linear-gradient(135deg, var(--red), var(--orange));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── CANVAS AREA ── */
+.canvas-wrap {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 2.5px solid var(--border);
+  background: white;
+  touch-action: none;
+}
+#draw-canvas {
+  display: block;
+  width: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Toolbar */
+.draw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  flex-wrap: wrap;
+}
+.color-swatch {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.active { border-color: var(--ink); transform: scale(1.15); }
+.size-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: white;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.size-btn:hover { border-color: var(--blue); }
+.size-btn.active { background: var(--blue); border-color: var(--blue); }
+.size-dot { border-radius: 50%; background: var(--ink); }
+.size-btn.active .size-dot { background: white; }
+.tool-sep { width: 1px; height: 24px; background: var(--border); margin: 0 2px; }
+.tool-btn {
+  padding: 5px 14px;
+  border-radius: 50px;
+  border: 2px solid var(--border);
+  background: white;
+  font-family: var(--font-fun);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.tool-btn:hover { border-color: var(--red); color: var(--red); }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 28px;
+  border-radius: 50px;
+  font-family: var(--font-fun);
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+}
+.btn-primary {
+  background: var(--blue);
+  color: white;
+  box-shadow: 0 4px 0 #2a6ecc;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #2a6ecc; }
+.btn-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #2a6ecc; }
+.btn-fun {
+  background: var(--sun);
+  color: var(--ink);
+  box-shadow: 0 4px 0 #c8a800;
+}
+.btn-fun:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #c8a800; }
+.btn-fun:active { transform: translateY(2px); box-shadow: 0 2px 0 #c8a800; }
+.btn-green {
+  background: var(--sky);
+  color: white;
+  box-shadow: 0 4px 0 #3d9e50;
+}
+.btn-green:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #3d9e50; }
+.btn-ghost {
+  background: white;
+  color: var(--ink-soft);
+  border: 2px solid var(--border);
+  box-shadow: 0 3px 0 var(--border);
+}
+.btn-ghost:hover { border-color: var(--blue); color: var(--blue); }
+.btn-full { width: 100%; }
+.btn-sm { padding: 8px 18px; font-size: 0.8rem; }
+
+/* ── GUESS INPUT ── */
+.guess-area {
+  display: flex; gap: 10px; align-items: stretch;
+}
+.guess-input {
+  flex: 1;
+  padding: 12px 18px;
+  border: 2.5px solid var(--border);
+  border-radius: 50px;
+  font-family: var(--font-fun);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s;
+  background: white;
+}
+.guess-input:focus { border-color: var(--blue); }
+.guess-input::placeholder { color: #ccc; font-weight: 400; }
+
+/* ── HISTORY ── */
+.history-item {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: white;
+  transition: box-shadow 0.2s;
+}
+.history-item:hover { box-shadow: 4px 4px 0 var(--border); }
+.history-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+.history-emoji { font-size: 1.5rem; flex-shrink: 0; }
+.history-meta { flex: 1; min-width: 0; }
+.history-topic {
+  font-family: var(--font-fun);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+.history-info {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.history-badge {
+  font-family: var(--font-fun);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: 50px;
+  background: var(--sky);
+  color: white;
+  white-space: nowrap;
+}
+.history-badge.miss { background: var(--red); }
+
+.history-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+.history-item.open .history-body { max-height: 1200px; }
+.history-inner { padding: 0 18px 18px; }
+.history-drawing {
+  width: 100%; max-width: 420px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  margin-bottom: 12px;
+}
+.history-answer {
+  font-family: var(--font-fun);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+}
+.history-answer strong { color: var(--sky); }
+
+/* ── COMMENTS ── */
+.comment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.comment-item {
+  background: var(--cream);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+}
+.comment-name {
+  font-family: var(--font-fun);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--blue);
+  margin-bottom: 3px;
+}
+.comment-text { font-size: 0.83rem; color: var(--ink); line-height: 1.5; }
+.comment-time { font-size: 0.68rem; color: #bbb; margin-top: 3px; }
+
+.comment-form { display: flex; flex-direction: column; gap: 8px; }
+.comment-name-input, .comment-text-input {
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 14px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--ink);
+  outline: none;
+  background: white;
+  transition: border-color 0.2s;
+}
+.comment-name-input:focus, .comment-text-input:focus { border-color: var(--blue); }
+.comment-text-input { resize: vertical; min-height: 60px; }
+
+/* ── MODAL ── */
+.modal-veil {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(45,45,45,0.5);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s;
+}
+.modal-veil.open { opacity: 1; pointer-events: all; }
+.modal-box {
+  background: white;
+  border-radius: var(--radius);
+  border: 3px solid var(--ink);
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 28px 24px;
+  width: 100%; max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  transform: scale(0.92);
+  transition: transform 0.25s;
+}
+.modal-veil.open .modal-box { transform: scale(1); }
+.modal-title {
+  font-family: var(--font-fun);
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--ink);
+  margin-bottom: 16px;
+}
+.modal-close {
+  position: absolute; top: 14px; right: 16px;
+  background: none; border: none;
+  font-size: 1.3rem; cursor: pointer; color: var(--ink-soft);
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 28px; left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--ink);
+  color: white;
+  padding: 11px 24px;
+  border-radius: 50px;
+  font-family: var(--font-fun);
+  font-size: 0.85rem;
+  font-weight: 700;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── MUSIC BTN ── */
+.music-fab {
+  position: fixed;
+  bottom: 24px; right: 20px;
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--sun);
+  border: 2.5px solid var(--orange);
+  box-shadow: 0 4px 0 #c8a800;
+  font-size: 1.2rem;
+  cursor: pointer; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.music-fab:hover { transform: scale(1.1); }
+.music-fab.playing { animation: bounce 0.6s ease-in-out infinite alternate; }
+@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+
+/* ── LOADING ── */
+.loading-wrap {
+  text-align: center; padding: 48px 20px;
+}
+.loading-spinner {
+  width: 40px; height: 40px;
+  border: 3.5px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+  font-family: var(--font-fun);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* ── EMPTY ── */
+.empty-state {
+  text-align: center; padding: 40px 20px;
+}
+.empty-icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-text {
+  font-family: var(--font-fun);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+/* ── RESULT BANNER ── */
+.result-banner {
+  text-align: center;
+  padding: 24px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+.result-banner.correct {
+  background: linear-gradient(135deg, #e8f8ec, #d0f0d8);
+  border: 2px solid var(--sky);
+}
+.result-banner.wrong {
+  background: linear-gradient(135deg, #fff0f0, #ffe0e0);
+  border: 2px solid var(--red);
+}
+.result-emoji { font-size: 3rem; margin-bottom: 8px; }
+.result-text {
+  font-family: var(--font-fun);
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+.result-answer {
+  font-family: var(--font-fun);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+/* ── TAG ── */
+.tag {
+  display: inline-block;
+  font-family: var(--font-fun);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 50px;
+  background: var(--sun);
+  color: var(--ink);
+}
+.tag.blue { background: var(--blue); color: white; }
+.tag.green { background: var(--sky); color: white; }
+.tag.red { background: var(--red); color: white; }
+
+.divider {
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  margin: 20px 0;
+}
+
+.flex-row { display: flex; gap: 10px; align-items: center; }
+.flex-col { display: flex; flex-direction: column; gap: 10px; }
+.mt12 { margin-top: 12px; }
+.mt20 { margin-top: 20px; }
+
+/* Guess hint */
+.guess-hint {
+  font-family: var(--font-fun);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.hint-dots span {
+  display: inline-block;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: var(--border);
+  margin: 0 2px;
+  font-size: 1rem;
+  line-height: 22px;
+  text-align: center;
+  font-family: var(--font-fun);
+  font-weight: 900;
+  color: var(--ink);
+  transition: all 0.3s;
+}
+.hint-dots span.revealed {
+  background: var(--sun);
+  color: var(--ink);
+}
+
+@media (max-width: 520px) {
+  .card { padding: 16px; }
+  header { padding: 28px 0 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- BG Doodles -->
+<div class="bg-doodles" id="bg-doodles"></div>
+
+<div class="page">
+  <header>
+    <div class="logo">
+      <span class="y">你</span><span class="h">畫</span><span class="w">我</span><span class="c">猜</span>
+    </div>
+    <div class="logo-sub">Draw · Guess · Laugh</div>
+  </header>
+
+  <!-- Main game area -->
+  <div id="game-area">
+    <div class="loading-wrap">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">正在準備遊戲…</div>
+    </div>
+  </div>
+
+  <!-- History section -->
+  <div id="history-section" style="display:none">
+    <div class="card-title" style="margin-top:8px">📜 歷史紀錄</div>
+    <div id="history-list"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-veil" id="modal-veil">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close">✕</button>
+    <div class="modal-title" id="modal-title"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Music FAB -->
+<button class="music-fab" id="music-fab" title="蠟筆小新配樂">🎵</button>
+
+<script>
+// ══════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════
+const SUPABASE_URL = 'https://uvhzzosnldlnasfvxexu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2aHp6b3NubGRsbmFzZnZ4ZXh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MTg5NDUsImV4cCI6MjA5NjQ5NDk0NX0.7zAga77Dlsxu04V_hwaRHxi8BsVbmKO-q7TShDTqPBw';
+const ANTHROPIC_PROXY = false; // 若要用 AI 出題需接 API
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── BG Doodles ──
+const doodles = ['✏️','🖍️','🎨','⭐','🌈','🖊️','🎭','🦋','🌸','🌟','💫','🎪'];
+const bg = document.getElementById('bg-doodles');
+doodles.forEach((d,i) => {
+  const s = document.createElement('span');
+  s.textContent = d;
+  s.style.cssText = `left:${Math.random()*95}%;top:${Math.random()*95}%;--d:${6+Math.random()*6}s;--delay:${Math.random()*4}s;--r:${Math.random()*30-15}deg;`;
+  bg.appendChild(s);
+});
+
+// ── Utilities ──
+function toast(msg, d=3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), d);
+}
+function openModal(title, html) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-veil').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-veil').classList.remove('open'); }
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-veil').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+
+function esc(s) { return !s ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function timeAgo(ts) {
+  const d = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (d < 60) return '剛剛';
+  if (d < 3600) return `${Math.floor(d/60)} 分鐘前`;
+  if (d < 86400) return `${Math.floor(d/3600)} 小時前`;
+  return `${Math.floor(d/86400)} 天前`;
+}
+
+// ── STAGE FLOW UI ──
+function stageFlow(active) {
+  // active: 0=出題, 1=畫畫, 2=猜題, 3=結束
+  const steps = [
+    {icon:'💡',label:'出題'},
+    {icon:'🖌️',label:'畫畫'},
+    {icon:'🤔',label:'猜題'},
+    {icon:'🎉',label:'結束'},
+  ];
+  return `<div class="stage-flow">
+    ${steps.map((s,i) => `
+      ${i>0 ? `<div class="stage-line"></div>` : ''}
+      <div class="stage-step ${i===active?'active':i<active?'done':''}">
+        <div class="stage-dot">${i < active ? '✓' : s.icon}</div>
+        <div class="stage-label">${s.label}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ══════════════════════════════════════
+// AI TOPIC GENERATOR
+// ══════════════════════════════════════
+const FALLBACK_TOPICS = [
+  '蠟筆小新','哆啦A夢','獨角獸','章魚燒','彩虹','恐龍','泡麵',
+  '貓咪打呼','企鵝溜冰','外星人騎腳踏車','超人變形金剛','章魚吃壽司',
+  '機器人跳舞','熊貓打太極','狗狗開車','兔子做蛋糕','烏龜賽跑'
+];
+
+async function getAITopic() {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 60,
+        messages: [{
+          role: 'user',
+          content: '請給我一個適合「你畫我猜」遊戲的題目。要有趣、具體、可以畫出來。只回覆題目本身，2-8個中文字，不要任何解釋或標點符號。例如：章魚燒、獨角獸、外星人騎腳踏車。'
+        }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text?.trim();
+    return text && text.length <= 20 ? text : randomFallback();
+  } catch(e) {
+    return randomFallback();
+  }
+}
+
+function randomFallback() {
+  return FALLBACK_TOPICS[Math.floor(Math.random() * FALLBACK_TOPICS.length)];
+}
+
+// ══════════════════════════════════════
+// MAIN GAME LOGIC
+// ══════════════════════════════════════
+let currentRound = null;
+
+async function initGame() {
+  const area = document.getElementById('game-area');
+  area.innerHTML = `<div class="loading-wrap"><div class="loading-spinner"></div><div class="loading-text">連結遊戲中…</div></div>`;
+
+  // 取得最新未結束的 round
+  const { data: rounds, error } = await db
+    .from('rounds')
+    .select('*')
+    .gte('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    area.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">無法連線，請確認 Supabase 設定<br><small>${esc(error.message)}</small></div></div>`;
+    loadHistory();
+    return;
+  }
+
+  if (!rounds || rounds.length === 0) {
+    // 沒有題目，產生新題目
+    showGeneratingTopic();
+    return;
+  }
+
+  currentRound = rounds[0];
+
+  if (!currentRound.drawing_url) {
+    // 有題目但沒人畫
+    showDrawStage(currentRound);
+  } else if (!currentRound.guessed) {
+    // 有畫但沒人猜
+    showGuessStage(currentRound);
+  } else {
+    // 已結束，產生新題目
+    showRoundComplete(currentRound);
+  }
+
+  loadHistory();
+}
+
+// ── 產生新題目 ──
+async function showGeneratingTopic() {
+  const area = document.getElementById('game-area');
+  area.innerHTML = `<div class="card"><div class="loading-wrap"><div class="loading-spinner"></div><div class="loading-text">AI 正在出題中…🤔</div></div></div>`;
+
+  const topic = await getAITopic();
+
+  // 存到 DB
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await db.from('rounds').insert({
+    topic,
+    expires_at: expiresAt,
+    guessed: false
+  }).select().single();
+
+  if (error) {
+    area.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">出題失敗<br><small>${esc(error.message)}</small></div></div>`;
+    return;
+  }
+
+  currentRound = data;
+  showDrawStage(currentRound);
+}
+
+// ── 畫畫階段 ──
+function showDrawStage(round) {
+  const area = document.getElementById('game-area');
+  area.innerHTML = `
+    ${stageFlow(1)}
+    <div class="card">
+      <div class="topic-reveal">
+        <div class="topic-label">✏️ 你的題目是</div>
+        <div class="topic-word">${esc(round.topic)}</div>
+      </div>
+      <div class="draw-toolbar" id="draw-toolbar">
+        ${['#2D2D2D','#FF6B6B','#FF9F45','#FFD93D','#6BCB77','#4D96FF','#C77DFF','#FFFFFF'].map((c,i) =>
+          `<div class="color-swatch ${i===0?'active':''}" style="background:${c};${c==='#FFFFFF'?'border:2px solid #ccc;':''}" data-color="${c}"></div>`
+        ).join('')}
+        <div class="tool-sep"></div>
+        <div class="size-btn active" data-size="4"><div class="size-dot" style="width:6px;height:6px"></div></div>
+        <div class="size-btn" data-size="10"><div class="size-dot" style="width:12px;height:12px"></div></div>
+        <div class="size-btn" data-size="20"><div class="size-dot" style="width:20px;height:20px"></div></div>
+        <div class="tool-sep"></div>
+        <button class="tool-btn" id="eraser-btn">橡皮擦</button>
+        <button class="tool-btn" id="clear-btn">清除</button>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="draw-canvas"></canvas>
+      </div>
+      <div class="mt12">
+        <button class="btn btn-fun btn-full" id="submit-drawing-btn">🎨 送出畫作！</button>
+      </div>
+    </div>`;
+
+  initCanvas();
+  document.getElementById('submit-drawing-btn').addEventListener('click', submitDrawing);
+}
+
+// ── CANVAS ──
+let ctx, isDrawing = false, currentColor = '#2D2D2D', currentSize = 4, isEraser = false;
+
+function initCanvas() {
+  const canvas = document.getElementById('draw-canvas');
+  const wrap = canvas.parentElement;
+  const W = wrap.clientWidth - 4;
+  const H = Math.min(W * 0.65, 380);
+  canvas.width = W;
+  canvas.height = H;
+  ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Color swatches
+  document.querySelectorAll('.color-swatch').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      currentColor = el.dataset.color;
+      isEraser = false;
+      document.getElementById('eraser-btn').style.color = '';
+    });
+  });
+
+  // Size btns
+  document.querySelectorAll('.size-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.size-btn').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      currentSize = parseInt(el.dataset.size);
+    });
+  });
+
+  document.getElementById('eraser-btn').addEventListener('click', () => {
+    isEraser = !isEraser;
+    document.getElementById('eraser-btn').style.color = isEraser ? 'var(--red)' : '';
+  });
+  document.getElementById('clear-btn').addEventListener('click', () => {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  });
+
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * scaleX, y: (src.clientY - r.top) * scaleY };
+  }
+
+  function startDraw(e) {
+    e.preventDefault();
+    isDrawing = true;
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+  function draw(e) {
+    e.preventDefault();
+    if (!isDrawing) return;
+    const p = getPos(e);
+    ctx.lineWidth = currentSize;
+    ctx.strokeStyle = isEraser ? 'white' : currentColor;
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+  function endDraw(e) { e.preventDefault(); isDrawing = false; }
+
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', endDraw);
+  canvas.addEventListener('touchstart', startDraw, { passive: false });
+  canvas.addEventListener('touchmove', draw, { passive: false });
+  canvas.addEventListener('touchend', endDraw);
+}
+
+async function submitDrawing() {
+  const canvas = document.getElementById('draw-canvas');
+  const dataUrl = canvas.toDataURL('image/png');
+
+  // 壓縮到較小的 base64
+  const compressed = await compressCanvas(canvas);
+
+  document.getElementById('submit-drawing-btn').textContent = '上傳中…';
+  document.getElementById('submit-drawing-btn').disabled = true;
+
+  const { error } = await db.from('rounds').update({
+    drawing_url: compressed,
+    drawn_at: new Date().toISOString()
+  }).eq('id', currentRound.id);
+
+  if (error) {
+    toast('上傳失敗：' + error.message);
+    document.getElementById('submit-drawing-btn').textContent = '🎨 送出畫作！';
+    document.getElementById('submit-drawing-btn').disabled = false;
+    return;
+  }
+
+  currentRound.drawing_url = compressed;
+  currentRound.guessed = false;
+  toast('🎨 畫作送出！換別人來猜了！');
+  showGuessStage(currentRound);
+}
+
+async function compressCanvas(canvas) {
+  return new Promise(resolve => {
+    const tmp = document.createElement('canvas');
+    tmp.width = 420; tmp.height = Math.round(420 * canvas.height / canvas.width);
+    const c = tmp.getContext('2d');
+    c.drawImage(canvas, 0, 0, tmp.width, tmp.height);
+    resolve(tmp.toDataURL('image/jpeg', 0.7));
+  });
+}
+
+// ── 猜題階段 ──
+function showGuessStage(round) {
+  const topic = round.topic;
+  const charCount = [...topic].length;
+
+  const area = document.getElementById('game-area');
+  area.innerHTML = `
+    ${stageFlow(2)}
+    <div class="card">
+      <div class="card-title">🤔 猜猜這是什麼？</div>
+      <img src="${esc(round.drawing_url)}" style="width:100%;border-radius:var(--radius-sm);border:2px solid var(--border);margin-bottom:14px;">
+      <div class="guess-hint">
+        <span>提示：</span>
+        <div class="hint-dots" id="hint-dots">
+          ${[...topic].map(() => `<span>?</span>`).join('')}
+        </div>
+        <span style="color:#ccc;">（${charCount}個字）</span>
+      </div>
+      <div class="guess-area">
+        <input type="text" class="guess-input" id="guess-input" placeholder="輸入你的答案…" maxlength="20">
+        <button class="btn btn-primary" id="submit-guess-btn">猜！</button>
+      </div>
+      <div id="guess-result"></div>
+      <div class="mt12" style="text-align:center">
+        <button class="btn btn-ghost btn-sm" id="hint-btn">💡 看提示（-10分）</button>
+      </div>
+    </div>`;
+
+  let hintCount = 0;
+  const chars = [...topic];
+
+  document.getElementById('hint-btn').addEventListener('click', () => {
+    if (hintCount >= chars.length) return;
+    // 隨機揭示一個字
+    const hidden = chars.map((c,i) => i).filter(i => {
+      const dots = document.querySelectorAll('#hint-dots span');
+      return dots[i]?.textContent === '?';
+    });
+    if (!hidden.length) return;
+    const idx = hidden[Math.floor(Math.random() * hidden.length)];
+    const dots = document.querySelectorAll('#hint-dots span');
+    dots[idx].textContent = chars[idx];
+    dots[idx].classList.add('revealed');
+    hintCount++;
+    toast(`提示：第 ${idx+1} 個字是「${chars[idx]}」`);
+  });
+
+  document.getElementById('guess-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('submit-guess-btn').click();
+  });
+
+  document.getElementById('submit-guess-btn').addEventListener('click', async () => {
+    const guess = document.getElementById('guess-input').value.trim();
+    if (!guess) return;
+    await submitGuess(round, guess);
+  });
+}
+
+async function submitGuess(round, guess) {
+  const correct = guess.trim() === round.topic.trim();
+  const resultEl = document.getElementById('guess-result');
+
+  resultEl.innerHTML = `
+    <div class="result-banner ${correct ? 'correct' : 'wrong'}" style="margin-top:14px">
+      <div class="result-emoji">${correct ? '🎉' : '😅'}</div>
+      <div class="result-text">${correct ? '答對了！！！' : '答錯了…'}</div>
+      <div class="result-answer">${correct ? `題目就是「${esc(round.topic)}」！` : `你猜：「${esc(guess)}」`}</div>
+    </div>`;
+
+  if (correct) {
+    await db.from('rounds').update({
+      guessed: true,
+      correct_answer: guess,
+      guessed_at: new Date().toISOString()
+    }).eq('id', round.id);
+
+    currentRound.guessed = true;
+    document.getElementById('submit-guess-btn').disabled = true;
+
+    setTimeout(() => {
+      showRoundComplete(round);
+      loadHistory();
+    }, 2000);
+  }
+}
+
+// ── 本回合結束 ──
+function showRoundComplete(round) {
+  const area = document.getElementById('game-area');
+  area.innerHTML = `
+    ${stageFlow(3)}
+    <div class="card" style="text-align:center">
+      <div style="font-size:3.5rem;margin-bottom:12px">🎊</div>
+      <div style="font-family:var(--font-fun);font-size:1.4rem;font-weight:900;margin-bottom:8px">本回合結束！</div>
+      <div style="font-size:0.88rem;color:var(--ink-soft);margin-bottom:20px">題目是「<strong>${esc(round.topic)}</strong>」</div>
+      ${round.drawing_url ? `<img src="${esc(round.drawing_url)}" style="width:100%;max-width:360px;border-radius:var(--radius-sm);border:2px solid var(--border);margin-bottom:20px;">` : ''}
+      <button class="btn btn-fun" id="next-round-btn">🎲 開始下一回合！</button>
+    </div>`;
+
+  document.getElementById('next-round-btn').addEventListener('click', async () => {
+    document.getElementById('next-round-btn').textContent = '出題中…';
+    document.getElementById('next-round-btn').disabled = true;
+    await showGeneratingTopic();
+  });
+}
+
+// ══════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════
+async function loadHistory() {
+  const { data, error } = await db
+    .from('rounds')
+    .select('*')
+    .eq('guessed', true)
+    .order('guessed_at', { ascending: false })
+    .limit(20);
+
+  const section = document.getElementById('history-section');
+  const list = document.getElementById('history-list');
+
+  if (error || !data || !data.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  list.innerHTML = data.map(r => historyItem(r)).join('');
+  document.querySelectorAll('.history-header').forEach(h => {
+    h.addEventListener('click', () => {
+      const item = h.closest('.history-item');
+      item.classList.toggle('open');
+      loadComments(r => r, item.dataset.id);
+    });
+  });
+
+  // Re-bind with correct round data
+  list.innerHTML = data.map(r => historyItemHtml(r)).join('');
+  data.forEach(r => {
+    const item = document.querySelector(`.history-item[data-id="${r.id}"]`);
+    if (!item) return;
+    item.querySelector('.history-header').addEventListener('click', () => {
+      item.classList.toggle('open');
+      if (item.classList.contains('open')) loadComments(r.id, item);
+    });
+    const form = item.querySelector('.comment-submit');
+    if (form) form.addEventListener('click', () => submitComment(r.id, item));
+  });
+}
+
+function historyItemHtml(r) {
+  return `
+  <div class="history-item" data-id="${r.id}">
+    <div class="history-header">
+      <div class="history-emoji">🎨</div>
+      <div class="history-meta">
+        <div class="history-topic">「${esc(r.topic)}」</div>
+        <div class="history-info">${timeAgo(r.guessed_at || r.created_at)}</div>
+      </div>
+      <div class="history-badge">已完成</div>
+    </div>
+    <div class="history-body">
+      <div class="history-inner">
+        ${r.drawing_url ? `<img class="history-drawing" src="${esc(r.drawing_url)}">` : ''}
+        <div class="history-answer">答案：<strong>${esc(r.topic)}</strong></div>
+        <div class="divider"></div>
+        <div class="card-title" style="font-size:0.88rem">💬 留言</div>
+        <div class="comment-list" id="comments-${r.id}">
+          <div style="font-size:0.8rem;color:#ccc;font-family:var(--font-fun)">載入中…</div>
+        </div>
+        <div class="comment-form">
+          <input class="comment-name-input" id="cname-${r.id}" placeholder="你的暱稱" maxlength="20">
+          <textarea class="comment-text-input" id="ctext-${r.id}" placeholder="留下你的想法…" rows="2"></textarea>
+          <button class="btn btn-green btn-sm comment-submit">💬 送出留言</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function loadComments(roundId, item) {
+  const el = item.querySelector(`#comments-${roundId}`);
+  if (!el) return;
+  const { data, error } = await db
+    .from('comments')
+    .select('*')
+    .eq('round_id', roundId)
+    .order('created_at', { ascending: true });
+
+  if (error || !data || !data.length) {
+    el.innerHTML = `<div style="font-size:0.8rem;color:#ccc;font-family:var(--font-fun)">還沒有留言，來第一個留言吧！</div>`;
+    return;
+  }
+
+  el.innerHTML = data.map(c => `
+    <div class="comment-item">
+      <div class="comment-name">${esc(c.nickname)}</div>
+      <div class="comment-text">${esc(c.content)}</div>
+      <div class="comment-time">${timeAgo(c.created_at)}</div>
+    </div>`).join('');
+}
+
+async function submitComment(roundId, item) {
+  const name = item.querySelector(`#cname-${roundId}`)?.value.trim();
+  const text = item.querySelector(`#ctext-${roundId}`)?.value.trim();
+  if (!name) return toast('請填寫暱稱');
+  if (!text) return toast('請填寫留言內容');
+
+  const { error } = await db.from('comments').insert({
+    round_id: roundId,
+    nickname: name,
+    content: text
+  });
+
+  if (error) return toast('留言失敗：' + error.message);
+  item.querySelector(`#ctext-${roundId}`).value = '';
+  toast('💬 留言成功！');
+  await loadComments(roundId, item);
+}
+
+// ══════════════════════════════════════
+// MUSIC — 小新的主題 1=G ♩=120
+// 1=G4 2=A4 3=B4 4=C5 5=D5 6=E5 7=F#5
+// 低八度: 5̣=D4 6̣=E4
+// 十六分音符=_s 附點十六=_ds 八分=_e 附點八分=_de 四分=_q 二分=_h
+// ══════════════════════════════════════
+const _s=0.14, _ds=0.21, _e=0.28, _de=0.42, _q=0.55, _h=1.1;
+
+const B2=123.47, B3=246.94, D4=293.66, E4=329.63, G4=392.00, A4=440.00, B4=493.88;
+const C5=523.25, D5=587.33, E5=659.25, Fs4=369.99, Fs5=739.99;
+
+const SCORE = [
+  // ── 第一行 ──
+  // 5̣· 6̣  1· 3  5  0  (全部十六分音符)
+  [D4,_ds],[E4,_s],  [G4,_ds],[B4,_s],  [D4,_q],[0,_q],
+  // 6̣· 1  2· 4  6  0
+  [E4,_de],[G4,_s],  [A4,_de],[C5,_s],  [E4,_q],[0,_q],
+  // 0 4  3· 4  3· 1  3· 2
+  [0,_e],[C5,_s],  [B4,_de],[C5,_s],  [B4,_de],[G4,_s],  [B4,_de],[A4,_s],
+  // 2  -  -  -
+  [A4,_h],[0,_h],
+
+  // ── 第二行 ──
+  // 5̣· 6̣  1· 3  5  0  (全部十六分音符)
+  [D4,_ds],[E4,_s],  [G4,_ds],[B4,_s],  [D4,_q],[0,_q],
+  // 6̣· 1  2· 4  6  0
+  [E4,_de],[G4,_s],  [A4,_de],[C5,_s],  [E4,_q],[0,_q],
+  // 0 4  3· 4  3· 7  2· 1
+  [0,_e],[C5,_s],  [B4,_de],[C5,_s],  [B4,_de],[Fs4,_s],  [A4,_de],[G4,_s],
+  // 1  -  -  -
+  [G4,_h],[0,_h],
+];
+
+let playing = false, audioCtx = null, musicTimer = null, noteIdx = 0;
+
+function playNote(freq, dur) {
+  if (!audioCtx || freq === 0) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const now = audioCtx.currentTime;
+  osc.type = 'triangle'; // 三角波更像撥弦
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.4, now + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.min(dur * 2.2, 1.8));
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 2);
+}
+
+function tick() {
+  if (!playing) return;
+  const [freq, dur] = SCORE[noteIdx];
+  playNote(freq, dur);
+  noteIdx = (noteIdx + 1) % SCORE.length;
+  musicTimer = setTimeout(tick, dur * 1000);
+}
+
+async function startMusic() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  tick();
+}
+
+function stopMusic() {
+  if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+  if (audioCtx) { try { audioCtx.close(); } catch(e){} audioCtx = null; }
+}
+
+document.getElementById('music-fab').addEventListener('click', async () => {
+  const btn = document.getElementById('music-fab');
+  if (playing) {
+    playing = false; stopMusic();
+    btn.textContent = '🎵'; btn.classList.remove('playing');
+  } else {
+    playing = true;
+    btn.textContent = '🎶'; btn.classList.add('playing');
+    await startMusic();
+  }
+});
+
+document.addEventListener('click', function onFirst() {
+  if (!playing) {
+    playing = true;
+    document.getElementById('music-fab').textContent = '🎶';
+    document.getElementById('music-fab').classList.add('playing');
+    startMusic();
+  }
+  document.removeEventListener('click', onFirst);
+}, { once: true });
+
+// ── INIT ──
+initGame();
+</script>
+</body>
+</html>
