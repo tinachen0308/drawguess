@@ -189,7 +189,7 @@ header {
 #draw-canvas {
   display: block;
   width: 100%;
-  cursor: crosshair;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg transform='rotate(-45 16 16)'%3E%3Crect x='13' y='2' width='6' height='16' rx='2' fill='%235a4060'/%3E%3Crect x='14' y='17' width='4' height='7' rx='1' fill='%23a0522d'/%3E%3Cellipse cx='16' cy='25' rx='3.5' ry='4' fill='%23e74c3c'/%3E%3Cellipse cx='16' cy='27' rx='2' ry='2' fill='%23c0392b'/%3E%3C/g%3E%3C/svg%3E") 4 28, crosshair;
   touch-action: none;
 }
 
@@ -1053,6 +1053,7 @@ async function showDrawStage(round) {
         <div class="size-btn" data-size="20"><div class="size-dot" style="width:20px;height:20px"></div></div>
         <div class="tool-sep"></div>
         <button class="tool-btn" id="eraser-btn">橡皮擦</button>
+        <button class="tool-btn" id="undo-btn">↩ 上一步</button>
         <button class="tool-btn" id="clear-btn">清除</button>
       </div>
       <div class="canvas-wrap">
@@ -1072,7 +1073,8 @@ async function showDrawStage(round) {
 
 // ── CANVAS ──
 let ctx, isDrawing = false, currentColor = '#2D2D2D', currentSize = 4, isEraser = false;
-let canvasLocked = false; // 是否已鎖定（第一筆才觸發）
+let canvasLocked = false;
+let undoStack = []; // 每次 mousedown 前存快照
 
 async function tryLockRound(round) {
   if (canvasLocked) return true;
@@ -1139,10 +1141,42 @@ function initCanvas(round) {
     isEraser = !isEraser;
     document.getElementById('eraser-btn').style.color = isEraser ? 'var(--red)' : '';
   });
+
   document.getElementById('clear-btn').addEventListener('click', () => {
+    saveSnapshot();
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   });
+
+  document.getElementById('undo-btn').addEventListener('click', () => undo());
+
+  // Ctrl+Z
+  document.addEventListener('keydown', function onKey(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      undo();
+    }
+    // 離開畫畫頁面就移除監聽
+    if (!document.getElementById('draw-canvas')) {
+      document.removeEventListener('keydown', onKey);
+    }
+  });
+
+  function saveSnapshot() {
+    undoStack.push(canvas.toDataURL());
+    if (undoStack.length > 30) undoStack.shift(); // 最多 30 步
+  }
+
+  function undo() {
+    if (undoStack.length === 0) return;
+    const prev = undoStack.pop();
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = prev;
+  }
 
   function getPos(e) {
     const r = canvas.getBoundingClientRect();
@@ -1154,9 +1188,9 @@ function initCanvas(round) {
 
   function startDraw(e) {
     e.preventDefault();
-    // 第一筆畫下去才鎖定
     tryLockRound(round).then(ok => {
-      if (!ok) return; // 搶不到鎖，已跳到等待畫面
+      if (!ok) return;
+      saveSnapshot(); // 每筆畫開始前存快照
       isDrawing = true;
       const p = getPos(e);
       ctx.beginPath();
@@ -1182,6 +1216,9 @@ function initCanvas(round) {
   canvas.addEventListener('touchstart', startDraw, { passive: false });
   canvas.addEventListener('touchmove', draw, { passive: false });
   canvas.addEventListener('touchend', endDraw);
+
+  // 重置 undo 堆疊
+  undoStack = [];
 }
 
 async function submitDrawing() {
